@@ -1,0 +1,15 @@
+<%= @mount_point -%>
+<% if @include %> +<% else %> <% end -%>
+<%= @map_type %>,<%= @format %>:<%= @map_filepath -%>
+<% @options.each do |opt| %> <%= opt %><% end -%>
+<% @D.each do |variable, value| -%>
+ -D<%= variable %>=<%= value -%>
+<% end -%>
+<% if @strict %> -strict<% end -%>
+<% if @browse %> browse<% end -%>
+<% if @nobind %> nobind<% end -%>
+<% if @symlink %> symlink<% end -%>
+<% if @random_multimount_selection %> --random-multimount-selection<% end -%>
+<% if @use_weight_only %> --use-weight-only<% end -%>
+<% if @timeout %> --timeout=<%= @timeout %><% end -%>
+<% if @negative_timeout %> --negative-timeout=<%= @negative_timeout %><% end %>
