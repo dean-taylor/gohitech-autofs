@@ -1,6 +1,10 @@
 <%= @mount_point -%>
-<% if @include %> +<% else %> <% end -%>
-<%= @map_type %>,<%= @format %>:<%= @map_filepath -%>
+<% if @mount_point != '+' %> <% end -%>
+<% if @map_type -%>
+<%= @map_type -%>
+  <%- if @format %>,<%= @format %><% end -%>
+:<% end -%>
+<%= @map_filepath -%>
 <% @options.each do |opt| %> <%= opt %><% end -%>
 <% @D.each do |variable, value| -%>
  -D<%= variable %>=<%= value -%>

@@ -1,7 +1,7 @@
 # man 5 autofs
 # key [-options] location
 define autofs::mount::map_entry (
-  $path            = $name,
+  $key             = $name,
   $fstype          = undef,
   $strict          = false,
   $use_weight_only = true,
@@ -13,7 +13,7 @@ define autofs::mount::map_entry (
   elsif is_array($location) { $location_real = join($location, ' ') }
   else { fail("Valid types for location are String or Array of Strings") }
 
-  notice("path=${path} options=-${options_real} location=${location_real}")
+  notice("path=${key} options=-${options_real} location=${location_real}")
 }
 
 define autofs::mount::map_entries (
@@ -27,15 +27,16 @@ define autofs::mount::map_entries (
       target  => $filepath,
       content => "${map_entry}\n",
     }
-  }
+  } elsif is_hash($map_entry) {
+    notice("Map entries of type Hash are not yet implemented.")
+  } else { fail("Invalid type for $map_entry") }
 }
 
 define autofs::mount (
-  $mount_point      = $name,
-  $map_type         = 'file',
-  $format           = 'sun',
+  $mount_point      = $name,	# <path>|/-|+
+  $map_type         = undef,	# file|program|exec|yp|nisplus|hesiod|ldap|ldaps|multi|dir
+  $format           = undef,	# sun|hesiod|amd
   $map,
-  $fstype           = undef,
   $options          = [],
   $D                = {},
   $strict           = false,
@@ -47,38 +48,54 @@ define autofs::mount (
   $timeout          = undef,
   $negative_timeout = undef,
 ) {
-  if ! (is_string($mount_point) and $mount_point == '/-') {
+  if ! (is_string($mount_point) and $mount_point =~ /^\/-|\+$/) {
     validate_absolute_path($mount_point)
   }
-  validate_re($map_type, '^file|program|exec|yp|nisplus|hesiod|ldap|ldaps|multi|dir$')
-  validate_re($format, '^(sun|hesiod)$')
+  if $map_type { validate_re($map_type, '^file|program|exec|yp|nisplus|hesiod|ldap|ldaps|multi|dir$') }
+  if $format { validate_re($format, '^sun|hesiod|amd$') }
   validate_string($fstype)
   validate_bool($strict,$browse,$nobind,$symlink,$random_multimount_selection,$use_weight_only)
   if $timeout          { validate_integer($timeout,undef,0) }
   if $negative_timeout { validate_integer($negative-timeout,undef,0) }
 
   $name_safe = regsubst($name, '[/ ]', '_', G)
-  $map_filepath = "/etc/auto.$name_safe"
+  if $map_type == undef { $map_type_real = 'file' }
+  else { $map_type_real = $map_type }
+  if $format == undef {
+    $format_real = $map_type ? {
+      undef => 'sun',
+      hesiod => 'hesiod',
+      default => $map_type,
+    }
+  }
 
   include autofs
 
-  if is_string($map) {
-    file { $map_filepath:
-      ensure  => present,
-      content => "${map}\n",
+  if $mount_point == '+' { $map_filepath = $name_safe }
+  else {
+    $map_filepath = "/etc/auto.$name_safe"
+
+    if $map_type_real == 'file' and $format_real == 'sun' {
+      if is_string($map) {
+        file { $map_filepath:
+          ensure  => present,
+          content => "${map}\n",
+        }
+      } elsif is_array($map) {
+        concat { $map_filepath:
+          ensure => present,
+          warn   => true,
+        }
+        autofs::mount::map_entries { $map:
+          filepath => $map_filepath,
+        }
+      } else {
+        fail('Invalide type for $map')
+      }
     }
-  } elsif is_array($map) {
-    concat { $map_filepath:
-      ensure => present,
-    }
-    autofs::mount::map_entries { $map:
-      filepath => $map_filepath,
-    }
-  } else {
-    fail('Invalide type for $map')
   }
 
-  if member(['dir',], $map_type) { $include = true }
+#  if member(['dir',], $map_type) { $include = true }
 
   concat::fragment { "/etc/auto.master_${map_filepath}":
     target  => '/etc/auto.master',
