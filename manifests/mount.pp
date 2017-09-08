@@ -50,8 +50,12 @@ define autofs::mount (
 ) {
   if ! (is_string($mount_point) and $mount_point =~ /^\/-|\+$/) {
     validate_absolute_path($mount_point)
+  } else {
+    validate_re($mount_point,'^/-|\+$')
   }
   if $map_type { validate_re($map_type, '^file|program|exec|yp|nisplus|hesiod|ldap|ldaps|multi|dir$') }
+  # Validate 'map' field based on map format setting
+  if $map_type == 'dir' { validate_absolute_path($map) }
   if $format { validate_re($format, '^sun|hesiod|amd$') }
   validate_string($fstype)
   validate_bool($strict,$browse,$nobind,$symlink,$random_multimount_selection,$use_weight_only)
@@ -71,8 +75,20 @@ define autofs::mount (
 
   include autofs
 
-  if $mount_point == '+' { $map_filepath = $name_safe }
-  else {
+  if $mount_point == '+' {
+    if $map_type == 'dir' {
+      $map_filepath = $map
+
+      # Created and owned by autofs daemon
+      #file { "$map_filepath":
+      #  ensure => present,
+      #  group  => 'root',
+      #  mode   => '0755',
+      #  owner  => 'root',
+      #  type   => directory,
+      #}
+    }
+  } else {
     $map_filepath = "/etc/auto.$name_safe"
 
     if $map_type_real == 'file' and $format_real == 'sun' {
@@ -89,6 +105,7 @@ define autofs::mount (
         autofs::mount::map_entries { $map:
           filepath => $map_filepath,
         }
+
       } else {
         fail('Invalide type for $map')
       }
